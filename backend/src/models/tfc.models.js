@@ -364,11 +364,38 @@ trainerSchema.index({ name: 1, isActive: 1 })
 
 const partnerSettlementSchema = new Schema(
   {
+    partnerId: { type: Schema.Types.ObjectId, ref: 'TurfPartner', required: true, index: true },
+    settlementPeriod: {
+      startDate: { type: Date, required: true },
+      endDate: { type: Date, required: true },
+    },
+    totalAmount: { type: Number, default: 0, min: 0 },
+    totalPaid: { type: Number, default: 0, min: 0 },
+    totalDue: { type: Number, default: 0, min: 0 },
+    currency: { type: String, default: 'INR', uppercase: true, minlength: 3, maxlength: 3 },
+    status: { type: String, enum: settlementStatuses, default: 'DRAFT', index: true },
+    paymentMethod: {
+      type: String,
+      enum: ['BANK_TRANSFER', 'UPI', 'CASH', 'CHEQUE', 'OTHER'],
+      default: 'BANK_TRANSFER',
+    },
+    paymentReference: String,
+    paymentDate: Date,
+    notes: String,
+    settlementItems: [{ type: Schema.Types.ObjectId, ref: 'SettlementItem' }],
+    processedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+  },
+  { collection: 'partner_settlements', timestamps: true, versionKey: false },
+)
+
+const settlementItemSchema = new Schema(
+  {
     settlementId: { type: Schema.Types.ObjectId, ref: 'PartnerSettlement', required: true, index: true },
     bookingId: { type: Schema.Types.ObjectId, ref: 'TurfBooking' },
     ledgerId: { type: Schema.Types.ObjectId, ref: 'PartnerLedger' },
-    amount: { type: Number, required: true },
+    amount: { type: Number, required: true, min: 0 },
     notes: String,
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { collection: 'settlement_items', timestamps: true, versionKey: false },
 )
