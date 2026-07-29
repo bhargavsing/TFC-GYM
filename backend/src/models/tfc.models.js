@@ -344,25 +344,25 @@ const partnerLedgerSchema = new Schema(
   { collection: 'partner_ledger', timestamps: true, versionKey: false },
 )
 
-const partnerSettlementSchema = new Schema(
+const trainerSchema = new Schema(
   {
-    settlementId: { type: String, unique: true, sparse: true },
-    partnerId: { type: Schema.Types.ObjectId, ref: 'TurfPartner', required: true, index: true },
-    periodStart: { type: Date, required: true },
-    periodEnd: { type: Date, required: true },
-    status: { type: String, enum: settlementStatuses, default: 'DRAFT', index: true },
-    grossRevenue: { type: Number, default: 0 },
-    deductions: { type: Number, default: 0 },
-    netAmount: { type: Number, default: 0 },
-    paymentProofUrl: String,
-    transactionReference: String,
-    query: String,
-    approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    title: { type: String, trim: true, maxlength: 120 },
+    bio: { type: String, trim: true, maxlength: 1200 },
+    specialties: [{ type: String, trim: true }],
+    certifications: [{ type: String, trim: true }],
+    hourlyRate: { type: Number, default: 0, min: 0 },
+    profilePhotoUrl: String,
+    email: { type: String, trim: true, lowercase: true },
+    phone: { type: String, trim: true },
+    isActive: { type: Boolean, default: true, index: true },
+    displayOrder: { type: Number, default: 0, index: true },
   },
-  { collection: 'partner_settlements', timestamps: true, versionKey: false },
+  { collection: 'trainers', timestamps: true, versionKey: false },
 )
+trainerSchema.index({ name: 1, isActive: 1 })
 
-const settlementItemSchema = new Schema(
+const partnerSettlementSchema = new Schema(
   {
     settlementId: { type: Schema.Types.ObjectId, ref: 'PartnerSettlement', required: true, index: true },
     bookingId: { type: Schema.Types.ObjectId, ref: 'TurfBooking' },
@@ -468,6 +468,7 @@ export const TurfPartner = mongoose.model('TurfPartner', turfPartnerSchema)
 export const PartnerLedger = mongoose.model('PartnerLedger', partnerLedgerSchema)
 export const PartnerSettlement = mongoose.model('PartnerSettlement', partnerSettlementSchema)
 export const SettlementItem = mongoose.model('SettlementItem', settlementItemSchema)
+export const Trainer = mongoose.model('Trainer', trainerSchema)
 export const Feedback = mongoose.model('Feedback', feedbackSchema)
 export const Notification = mongoose.model('Notification', notificationSchema)
 export const Coupon = mongoose.model('Coupon', couponSchema)

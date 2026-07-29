@@ -83,4 +83,7 @@ export const tfcApi = {
   generateTurfSlots: (date) => http.post('/api/admin/turf-slots/generate-day', { date }).then(unwrap),
   upsertTurfSlot: (input) => http.post('/api/admin/turf-slots/upsert', input).then(unwrap),
   updateTurfSlot: (id, input) => http.put(`/api/admin/turf-slots/${id}`, input).then(unwrap),
+  trainers: () => http.get('/api/trainers').then(unwrap),
+  adminTurfBookings: () => http.get('/api/admin/turf-bookings').then(unwrap),
+  updateBookingStatus: (bookingId, status) => http.patch(`/api/admin/turf-bookings/${bookingId}/status`, { status }).then(unwrap),
 }

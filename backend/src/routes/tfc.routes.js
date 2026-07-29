@@ -26,6 +26,7 @@ import {
   TurfBooking,
   TurfPartner,
   TurfSlot,
+  Trainer,
   User,
   WebsiteContent,
 } from '../models/tfc.models.js'
@@ -37,6 +38,9 @@ const adminLoginLimiter = rateLimit({
   limit: env.NODE_ENV === 'production' ? 20 : env.ADMIN_LOGIN_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
+  // Only failed attempts should consume the login-attempt budget. Without this,
+  // normal admin logins eventually lock the endpoint for every user sharing an IP.
+  skipSuccessfulRequests: true,
   message: {
     type: 'about:blank',
     title: 'Too many login attempts',
@@ -111,6 +115,20 @@ const bookingSchema = z.object({
   notes: z.string().optional(),
   couponCode: z.string().optional(),
   lockToken: z.string().optional(),
+})
+
+const trainerSchema = z.object({
+  name: z.string().trim().min(2),
+  title: z.string().trim().optional(),
+  bio: z.string().trim().max(1200).optional(),
+  specialties: z.array(z.string().trim()).default([]),
+  certifications: z.array(z.string().trim()).default([]),
+  hourlyRate: money.default(0),
+  profilePhotoUrl: z.string().url().optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  isActive: z.boolean().optional(),
+  displayOrder: z.coerce.number().int().optional(),
 })
 
 const feedbackSchema = z.object({
@@ -620,6 +638,86 @@ tfcRouter.get('/turfs', async (_request, response, next) => {
   }
 })
 
+tfcRouter.get('/trainers', async (_request, response, next) => {
+  try {
+    response.json(await Trainer.find({ isActive: true }).sort({ displayOrder: 1, name: 1 }).lean().exec())
+  } catch (error) {
+    next(error)
+  }
+})
+
+tfcRouter.get('/admin/trainers', ...adminOnly, async (_request, response, next) => {
+  try {
+    response.json(await Trainer.find().sort({ displayOrder: 1, name: 1 }).lean().exec())
+  } catch (error) {
+    next(error)
+  }
+})
+
+tfcRouter.post('/admin/trainers', ...adminOnly, async (request, response, next) => {
+  try {
+    const trainer = await Trainer.create(trainerSchema.parse(request.body))
+    await audit(request, 'TRAINER_CREATED', 'Trainer', trainer._id, { newValues: trainer.toObject() })
+    response.status(201).json(trainer)
+  } catch (error) {
+    next(error)
+  }
+})
+
+tfcRouter.patch('/admin/trainers/:trainerId', ...adminOnly, async (request, response, next) => {
+  try {
+    const trainer = await Trainer.findByIdAndUpdate(request.params.trainerId, trainerSchema.partial().parse(request.body), {
+      returnDocument: 'after',
+      runValidators: true,
+    })
+      .lean()
+      .exec()
+
+    if (!trainer) throw new HttpError(404, 'Trainer not found')
+    await audit(request, 'TRAINER_UPDATED', 'Trainer', request.params.trainerId, { newValues: trainer })
+    response.json(trainer)
+  } catch (error) {
+    next(error)
+  }
+})
+
+tfcRouter.get('/admin/turf-bookings', ...adminOnly, async (request, response, next) => {
+  try {
+    const query = z.object({ turfId: objectId.optional(), status: z.string().optional(), q: z.string().optional() }).parse(request.query)
+    const filter = {}
+
+    if (query.turfId) filter.turfId = query.turfId
+    if (query.status) filter.status = query.status
+    if (query.q) {
+      filter.$or = [
+        { bookingId: { $regex: query.q, $options: 'i' } },
+        { bookingName: { $regex: query.q, $options: 'i' } },
+      ]
+    }
+
+    const bookings = await TurfBooking.find(filter)
+      .sort({ startAt: -1 })
+      .populate('turfId', 'name')
+      .lean()
+      .exec()
+    response.json(bookings)
+  } catch (error) {
+    next(error)
+  }
+})
+
+tfcRouter.patch('/admin/turf-bookings/:bookingId/status', ...adminOnly, async (request, response, next) => {
+  try {
+    const input = z.object({ status: z.enum(['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'REFUNDED', 'NO_SHOW', 'BLOCKED_BY_ADMIN']) }).parse(request.body)
+    const booking = await TurfBooking.findByIdAndUpdate(request.params.bookingId, { status: input.status }, { returnDocument: 'after' }).lean().exec()
+    if (!booking) throw new HttpError(404, 'Booking not found')
+    await audit(request, 'BOOKING_STATUS_UPDATED', 'TurfBooking', request.params.bookingId, { newValues: booking })
+    response.json(booking)
+  } catch (error) {
+    next(error)
+  }
+})
+
 tfcRouter.post('/admin/turfs', ...adminOnly, async (request, response, next) => {
   try {
     const turf = await Turf.create(turfSchema.parse(request.body))
@@ -984,6 +1082,8 @@ tfcRouter.get('/admin/dashboard', ...adminOnly, async (_request, response, next)
       pendingPartnerSettlements,
       newFeedbackItems,
       monthlyPayments,
+      recentPayments,
+      outstandingRevenue,
     ] = await Promise.all([
       GymMember.countDocuments({ isDeleted: false }),
       GymMember.countDocuments({ membershipStatus: 'ACTIVE', isDeleted: false }),
@@ -992,7 +1092,7 @@ tfcRouter.get('/admin/dashboard', ...adminOnly, async (_request, response, next)
       GymMember.countDocuments({ paymentStatus: { $in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] }, isDeleted: false }),
       Payment.aggregate([{ $match: { status: 'PAID', purpose: /GYM|MEMBERSHIP/i } }, { $group: { _id: null, total: { $sum: '$finalAmount' } } }]),
       TurfBooking.countDocuments({ startAt: { $gte: startOfDay }, status: { $in: ['CONFIRMED', 'COMPLETED'] } }),
-      TurfBooking.countDocuments({ startAt: { $gte: startOfMonth }, status: { $in: ['CONFIRMED', 'COMPLETED'] } }),
+      TurfBooking.countDocuments({ startAt: { $gte: startOfMonth }, status: { $in: ['CONFIRMED', 'COMPLETED'] } } ),
       Payment.aggregate([{ $match: { status: 'PAID', purpose: /TURF/i } }, { $group: { _id: null, total: { $sum: '$finalAmount' } } }]),
       PartnerSettlement.countDocuments({ status: { $in: ['DRAFT', 'PENDING_APPROVAL', 'DISPUTED'] } }),
       Feedback.countDocuments({ status: 'NEW' }),
@@ -1001,7 +1101,19 @@ tfcRouter.get('/admin/dashboard', ...adminOnly, async (_request, response, next)
         { $group: { _id: { month: { $month: '$paidDate' }, year: { $year: '$paidDate' }, method: '$method' }, total: { $sum: '$finalAmount' } } },
         { $sort: { '_id.year': 1, '_id.month': 1 } },
       ]),
+      Payment.find({ status: 'PAID' }).sort({ paidDate: -1 }).limit(6).lean().exec(),
+      Payment.aggregate([{ $match: { status: { $in: ['PENDING', 'PARTIALLY_PAID', 'OVERDUE'] } } }, { $group: { _id: null, total: { $sum: '$finalAmount' } } }]),
     ])
+
+    const rawMonthlyPayments = monthlyPayments
+    const averageMonthlyRevenue = rawMonthlyPayments.length ? rawMonthlyPayments.reduce((sum, row) => sum + row.total, 0) / rawMonthlyPayments.length : 0
+    const paymentsList = recentPayments.map((payment) => ({
+      id: payment.internalPaymentId ?? payment._id.toString(),
+      member: payment.purpose || 'Payment',
+      amount: payment.finalAmount ?? payment.amount ?? 0,
+      status: payment.status === 'PAID' ? 'Paid' : payment.status === 'PENDING' ? 'Pending' : payment.status,
+      date: payment.paidDate ? payment.paidDate.toISOString().slice(0, 10) : new Date(payment.createdAt).toISOString().slice(0, 10),
+    }))
 
     response.json({
       totalGymMembers,
@@ -1009,13 +1121,17 @@ tfcRouter.get('/admin/dashboard', ...adminOnly, async (_request, response, next)
       expiredMembers,
       expiringSoon,
       pendingGymPayments,
+      totalRevenue: (gymRevenue[0]?.total ?? 0) + (turfRevenue[0]?.total ?? 0),
       gymRevenue: gymRevenue[0]?.total ?? 0,
+      turfRevenue: turfRevenue[0]?.total ?? 0,
+      outstandingRevenue: outstandingRevenue[0]?.total ?? 0,
       turfBookingsToday,
       turfBookingsThisMonth,
-      turfRevenue: turfRevenue[0]?.total ?? 0,
       pendingPartnerSettlements,
       newFeedbackItems,
-      charts: { monthlyPayments },
+      monthlyAverage: Math.round(averageMonthlyRevenue),
+      recentPayments: paymentsList,
+      charts: { monthlyPayments: rawMonthlyPayments },
     })
   } catch (error) {
     next(error)
