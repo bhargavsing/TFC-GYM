@@ -72,8 +72,3 @@ export const partnerOnly = [authenticate, authorize('PARTNER', 'SUPER_ADMIN')]
 export const customerOnly = [authenticate, authorize('CUSTOMER', 'SUPER_ADMIN')]
 
 
-
-export const adminOnly = [authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'admin')]
-export const superAdminOnly = [authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'admin')]
-export const partnerOnly = [authenticate, authorize('PARTNER', 'SUPER_ADMIN')]
-export const customerOnly = [authenticate, authorize('CUSTOMER', 'SUPER_ADMIN')]
