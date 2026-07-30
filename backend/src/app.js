@@ -56,7 +56,7 @@ app.use('/api', tfcRouter)
 // Serve frontend static files (built) and fallback to index.html for client-side routing.
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const clientDist = path.join(__dirname, '../frontend/dist')
+const clientDist = path.join(__dirname, '../../frontend/dist')
 
 app.use(express.static(clientDist))
 app.get('*', (req, res, next) => {
