@@ -4,6 +4,8 @@ import express from 'express'
 import helmet from 'helmet'
 import mongoSanitize from 'express-mongo-sanitize'
 import rateLimit from 'express-rate-limit'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { authRouter } from './auth/auth.routes.js'
 import { errorHandler, notFoundHandler } from './common/error-handler.js'
 import { env } from './config/env.js'
@@ -50,6 +52,19 @@ app.get('/api/health', (_request, response) => {
 app.use('/api/auth', authRouter)
 app.use('/api/v1/members', memberRouter)
 app.use('/api', tfcRouter)
+
+// Serve frontend static files (built) and fallback to index.html for client-side routing.
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const clientDist = path.join(__dirname, '../frontend/dist')
+
+app.use(express.static(clientDist))
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next()
+  res.sendFile(path.join(clientDist, 'index.html'), (err) => {
+    if (err) next(err)
+  })
+})
 
 app.use(notFoundHandler)
 app.use(errorHandler)

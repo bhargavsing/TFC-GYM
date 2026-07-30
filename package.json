@@ -1,0 +1,20 @@
+{
+  "name": "tfc-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces",
+    "install": "npm install",
+    "build": "npm --workspaces run build",
+    "dev:start": "concurrently \"npm --workspace backend run dev\" \"npm --workspace frontend run dev\"",
+    "start": "npm --workspace backend run start",
+    "test": "npm --workspaces run test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
