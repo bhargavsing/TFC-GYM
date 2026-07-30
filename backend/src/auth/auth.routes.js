@@ -9,7 +9,8 @@ import {
   revokeRefreshToken,
 } from './auth.service.js'
 import { authenticate } from './auth.middleware.js'
-
+import rateLimit from 'express-rate-limit'
+import { env } from '../config/env.js'
 export const authRouter = Router()
 
 const registerSchema = z.object({
