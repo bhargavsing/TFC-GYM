@@ -79,11 +79,36 @@ export async function loginUser({ identifier, password }, request, allowedRoles 
   const user = await User.findOne({
     $or: [{ email: identifier.toLowerCase() }, { phone: identifier }],
   })
-    .select('+passwordHash')
+    .select('+passwordHash loginAttempts lockedUntil')
     .exec()
 
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    throw new HttpError(401, 'Invalid credentials')
+  // Generic invalid credentials response to avoid user enumeration
+  const invalidCredsError = new HttpError(401, 'Invalid credentials')
+
+  if (!user) {
+    // Delay response slightly to make enumeration harder
+    await bcrypt.hash(password, 4).catch(() => {})
+    throw invalidCredsError
+  }
+
+  // Check if account is temporarily locked due to repeated failures
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    throw new HttpError(423, 'Account locked due to repeated failed login attempts. Try again later.')
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.passwordHash)
+
+  if (!passwordMatches) {
+    // Increment login attempts and lock account on threshold
+    user.loginAttempts = (user.loginAttempts || 0) + 1
+    const MAX_ATTEMPTS = 5
+    const LOCK_MINUTES = 15
+    if (user.loginAttempts >= MAX_ATTEMPTS) {
+      user.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60 * 1000)
+      user.loginAttempts = 0
+    }
+    await user.save()
+    throw invalidCredsError
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
@@ -94,6 +119,9 @@ export async function loginUser({ identifier, password }, request, allowedRoles 
     throw new HttpError(403, `Account is ${user.accountStatus.toLowerCase()}`)
   }
 
+  // Reset login attempts on successful login
+  user.loginAttempts = 0
+  user.lockedUntil = undefined
   user.lastLoginAt = new Date()
   await user.save()
 

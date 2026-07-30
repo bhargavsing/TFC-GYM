@@ -15,7 +15,10 @@ export async function authenticate(request, _response, next) {
 
     const decoded = verifyAccessToken(token)
 
-    if (decoded.type === 'admin') {
+    // Support both admin JWTs (signed by the admin login) and regular user tokens.
+    const isAdminToken = decoded?.type === 'admin' || String(decoded?.role ?? '').toUpperCase() === 'ADMIN'
+
+    if (isAdminToken) {
       const admin = await Admin.findById(decoded.sub).lean().exec()
 
       if (!admin || !admin.isActive) {
@@ -26,7 +29,7 @@ export async function authenticate(request, _response, next) {
         id: admin._id.toString(),
         name: admin.name,
         username: admin.username,
-        role: 'admin',
+        role: 'ADMIN',
       }
       next()
       return
@@ -38,12 +41,36 @@ export async function authenticate(request, _response, next) {
       throw new HttpError(403, `Account is ${user.accountStatus.toLowerCase()}`)
     }
 
-    request.user = user
+    // Normalize role to uppercase for consistent authorization checks
+    request.user = { ...user, role: String(user.role ?? '').toUpperCase() }
     next()
   } catch (error) {
     next(error)
   }
 }
+
+export function authorize(...roles) {
+  const allowed = roles.map((r) => String(r).toUpperCase())
+  return (request, _response, next) => {
+    if (!request.user) {
+      next(new HttpError(401, 'Authentication is required'))
+      return
+    }
+
+    if (!allowed.includes(request.user.role)) {
+      next(new HttpError(403, 'You do not have permission to perform this action'))
+      return
+    }
+
+    next()
+  }
+}
+
+export const adminOnly = [authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'admin')]
+export const superAdminOnly = [authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'admin')]
+export const partnerOnly = [authenticate, authorize('PARTNER', 'SUPER_ADMIN')]
+export const customerOnly = [authenticate, authorize('CUSTOMER', 'SUPER_ADMIN')]
+
 
 export function authorize(...roles) {
   return (request, _response, next) => {

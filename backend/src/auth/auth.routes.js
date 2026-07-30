@@ -36,7 +36,21 @@ authRouter.post('/register', async (request, response, next) => {
   }
 })
 
-authRouter.post('/login', async (request, response, next) => {
+const userLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: env.NODE_ENV === 'production' ? 60 : 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: {
+    type: 'about:blank',
+    title: 'Too many login attempts',
+    status: 429,
+    detail: 'Too many login attempts. Please wait a few minutes and try again.',
+  },
+})
+
+authRouter.post('/login', userLoginLimiter, async (request, response, next) => {
   try {
     const session = await loginUser(loginSchema.parse(request.body), request, ['CUSTOMER'])
     setRefreshCookie(response, session.refreshToken)

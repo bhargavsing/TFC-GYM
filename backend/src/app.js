@@ -4,6 +4,7 @@ import express from 'express'
 import helmet from 'helmet'
 import mongoSanitize from 'express-mongo-sanitize'
 import rateLimit from 'express-rate-limit'
+import compression from 'compression'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { authRouter } from './auth/auth.routes.js'
@@ -13,6 +14,15 @@ import { memberRouter } from './member/member.routes.js'
 import { tfcRouter } from './routes/tfc.routes.js'
 
 export const app = express()
+
+// When behind a proxy (Render, Heroku, etc) enable trust proxy so
+// request.ip and secure cookies work correctly.
+app.set('trust proxy', 1)
+
+// Gzip responses for better performance in production
+if (env.NODE_ENV === 'production') {
+  app.use(compression())
+}
 
 function sanitizeRequest(request, _response, next) {
   if (request.body) {
