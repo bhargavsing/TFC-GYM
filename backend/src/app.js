@@ -59,8 +59,10 @@ const __dirname = path.dirname(__filename)
 const clientDist = path.join(__dirname, '../../frontend/dist')
 
 app.use(express.static(clientDist))
-app.get('*', (req, res, next) => {
+
+app.use((req, res, next) => {
   if (req.path.startsWith('/api')) return next()
+
   res.sendFile(path.join(clientDist, 'index.html'), (err) => {
     if (err) next(err)
   })
