@@ -6,8 +6,6 @@
   "engines": {
     "node": ">=22.12"
   },
-
-
   "scripts": {
     "dev": "node --watch src/server.js",
     "build": "node --check src/server.js",
@@ -15,11 +13,10 @@
     "seed": "node src/seeds/seed.js",
     "seed:admin": "node src/seeds/seed-admin.js",
     "test": "vitest run"
-  
-}
-  ,
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
