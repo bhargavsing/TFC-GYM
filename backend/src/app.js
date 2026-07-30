@@ -57,7 +57,7 @@ app.use('/api', tfcRouter)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const clientDist = path.join(__dirname, '../../frontend/dist')
-
+if (env.NODE_ENV === 'production') {
 app.use(express.static(clientDist))
 
 app.use((req, res, next) => {
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
   res.sendFile(path.join(clientDist, 'index.html'), (err) => {
     if (err) next(err)
   })
-})
+})}
 
 app.use(notFoundHandler)
 app.use(errorHandler)

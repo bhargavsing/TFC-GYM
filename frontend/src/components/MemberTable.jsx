@@ -60,7 +60,7 @@ export function MemberTable() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-180 text-left">
+        <table className="w-full min-w-[520px] md:min-w-[720px] text-left">
           <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500">
             <tr>
               <th className="px-6 py-4 sm:pl-8">Member</th>
