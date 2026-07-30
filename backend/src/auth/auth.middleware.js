@@ -72,21 +72,6 @@ export const partnerOnly = [authenticate, authorize('PARTNER', 'SUPER_ADMIN')]
 export const customerOnly = [authenticate, authorize('CUSTOMER', 'SUPER_ADMIN')]
 
 
-export function authorize(...roles) {
-  return (request, _response, next) => {
-    if (!request.user) {
-      next(new HttpError(401, 'Authentication is required'))
-      return
-    }
-
-    if (!roles.includes(request.user.role)) {
-      next(new HttpError(403, 'You do not have permission to perform this action'))
-      return
-    }
-
-    next()
-  }
-}
 
 export const adminOnly = [authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'admin')]
 export const superAdminOnly = [authenticate, authorize('SUPER_ADMIN', 'ADMIN', 'admin')]
